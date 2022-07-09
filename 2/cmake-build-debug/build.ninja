@@ -72,12 +72,12 @@ build edit_cache: phony CMakeFiles/edit_cache.util
 
 build cmake_object_order_depends_target_3: phony || CMakeFiles/3.dir
 
-build CMakeFiles/3.dir/skeleton/mips.c.o: C_COMPILER__3_Debug /Users/cmdq/_projects/_CA/ex/2/skeleton/mips.c || cmake_object_order_depends_target_3
-  DEP_FILE = CMakeFiles/3.dir/skeleton/mips.c.o.d
+build CMakeFiles/3.dir/3.c.o: C_COMPILER__3_Debug /Users/cmdq/_projects/_CA/ex/2/3.c || cmake_object_order_depends_target_3
+  DEP_FILE = CMakeFiles/3.dir/3.c.o.d
   FLAGS = -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.3.sdk -std=gnu11
   INCLUDES = -I/Users/cmdq/_projects/_CA/ex/2/skeleton
   OBJECT_DIR = CMakeFiles/3.dir
-  OBJECT_FILE_DIR = CMakeFiles/3.dir/skeleton
+  OBJECT_FILE_DIR = CMakeFiles/3.dir
 
 
 # =============================================================================
@@ -87,7 +87,7 @@ build CMakeFiles/3.dir/skeleton/mips.c.o: C_COMPILER__3_Debug /Users/cmdq/_proje
 #############################################
 # Link the executable 3
 
-build 3: C_EXECUTABLE_LINKER__3_Debug CMakeFiles/3.dir/skeleton/mips.c.o
+build 3: C_EXECUTABLE_LINKER__3_Debug CMakeFiles/3.dir/3.c.o
   FLAGS = -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.3.sdk
   OBJECT_DIR = CMakeFiles/3.dir
   POST_BUILD = :

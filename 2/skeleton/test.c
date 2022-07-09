@@ -125,10 +125,10 @@ void test_lw() {
 void test_ori() {
     /* TODO: Task (d) add test for ORI here */
     word w1 = 0x11110000;
-    word w2 = 0x10110101;
+    word w2 = 0x00110101;
 
     unsigned immediate1 = 0x00001111;
-    unsigned immediate2 = 0x00001100;
+    unsigned immediate2 = 0x10001100;
 
     T0 = w1;
     test_execute(create_itype_hex(immediate1, I_T1, I_T0, OC_ORI));

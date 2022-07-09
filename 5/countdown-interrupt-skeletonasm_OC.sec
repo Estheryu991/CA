@@ -1,0 +1,439 @@
+# SKELETON
+# -------------------------------------------------------------------------------------
+# Series 5 - MIPS Programming Part 2 - Countdown Clock with Keyboard Interrupts
+# 
+# Group members:
+# tobias brunner, olivier-cathrein
+# 
+# Individualised code by:
+# olivier-cathrein
+# Matr-Nr. ends with "7" -> "d" (0x28) button starts countdown
+# -------------------------------------------------------------------------------------
+# INSTRUCTIONS:
+# After connecting the Digital Lab Sim and starting the programm you have two options:
+# 1)	Press "d" to start the countdown with default value of 9.
+# 2)	Press any number on the keypad. Then press "d" to start the coutdown with previously pressed value.
+#
+# For both variants it is possible to press "d" again during the countdown to restart it from the previously used value. 
+# During the countdown you can press any number to restart the countdown from said value.
+# -------------------------------------------------------------------------------------
+
+# Declare main as a global function
+.globl main 
+	
+# All memory structures are placed after the .data assembler directive
+.data
+
+initial:	.word 9		# this is the initial value of the countdown (seconds)
+value: 		.word 9  	# this is the current value of the countdown (seconds)
+
+left_segment: .word 0xFFFF0011
+right_segment: .word 0xFFFF0010
+
+start: 		.asciiz "COUNTDOWN STARTED\n"
+
+# 	      0     1     2     3     4     5     6     7     8     9
+digits: .byte 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F
+
+start_pressed: .byte 0x0
+
+# All program code is placed after the .text assembler directive
+.text 	
+	li $t0, 0xFFFF0012	# this address holds a byte of control bits that allow us to access the keys in Digital Lab Sim
+	li $t1, 0x81		# we enable interrupts by activating bit 7 on row 1, i.e., in binary: 1000 0001
+	sb $t1, 0($t0)	
+
+# The label 'main' represents the starting point
+main:
+
+# *************************************************************************************
+# TASK (c): Implement the interrupt handling for a key press that starts the countdown. 
+# 1. Set the interrupt bit on the row of buttons you want to use (see demo code).
+# 2. Implement the interrupt handler (see section at the bottom).
+# 3. Add a waiting loop here and branch out if the "start_pressed" byte is != 0.
+# *************************************************************************************	
+
+
+	
+	lw $t7, initial  	# register t7 holds the initial countdown value
+
+
+	# waiting loop until start key pressed (key c)
+	wait_loop:
+		lb $t6, start_pressed
+		bnez $t6, init	
+	j wait_loop
+	
+	init:
+	# print a start message to stdout
+	li      $v0, 4       	
+	la      $a0, start  	
+	syscall	
+	
+# *************************************************************************************
+# MAIN CODE FOR COUNTDOWN: Add your implementation from Series 4 here. 
+# If you don't have a working code, ask the teaching assistants for help.
+# You are not allowed to copy someone else's code.
+# 
+# You may have to slightly adapt it to work with the interrupt handling, but no 
+# major changes should be required. Most of the added functionality can be implemented 
+# at the start of the program and in the interrupt  handler.
+# *************************************************************************************	
+
+# SOLUTIONS EX04 (with slight modifications)
+# *************************************************************************************
+# EX04: TASK (e): Implement the main countdown loop. It should stop when the countdown 
+# reaches zero. From here you should call the subroutines defined below, some of which
+# are already complete and some you have to implement in other tasks.
+# *************************************************************************************
+	# a0 (word): The digit, a number between 0 and 9
+	# a1 (byte): This is the address of the segment status buffer to which we want to write the segment state. 
+	
+	# 1. Split the countdown value into its two digits (see get_digits subroutine)
+	# 2. Write the digits to the display (see write_digit subroutine)
+	# 3. Stall for 1 second
+	# 4. Check if countdown runs out and continue looping
+	loop:
+		move $a0, $t7		# store current value of countdown in $a0
+		jal get_digits          # now in $v0 is the right digit and in $v0 is the left digit
+		
+		move $a0, $v0		# store value of right digit in $a0
+		lw $a1, right_segment	# store address of right segment in $a
+		jal write_digit
+		
+		li $a0, 1000		# $a0 = milliseconds
+		jal pause
+		
+		addi, $t7, ,$t7, -1	# decrement countdown by one, or i--
+		beq $t7, -1, blink	# call blink subroutine if counter reaches 0
+		
+		j loop			# jump to loop loop
+		
+# *************************************************************************************
+# EX04: TASK (f): Alarm signal - create a blinking animation.
+# *************************************************************************************
+	# 1. Turn display off
+	# 2. Wait
+	# 3. Turn display on
+	# 4. Loop
+	
+	blink:
+		add $t0, $zero, $zero	# reset $t0
+		lw $a1, right_segment	# store address of left segment in $a
+		sb $t0, 0($a1)		# clear left segment
+		sb $t0, 1($a1)		# clear right segment
+		
+		li $a0, 300		# $a0 = milliseconds
+		jal pause
+
+		li $a0, 0		# store "8" digit in $a0 so it gets displayed
+		jal write_digit
+		
+		li $a0, 300		# $a0 = milliseconds
+		jal pause
+
+	# Uncomment the following two lines for a fixed number of blinks
+		#addi, $t7, ,$t7, 1	# increment countdown by one, or i++
+		#beq $t7, 20, exit	# call exit subroutine after 20 blinks
+		
+		j blink			# loop blink subroutine
+		
+# *************************************************************************************
+# EX04: Exit the program by means of a syscall.
+# *************************************************************************************
+	exit: 
+		li $v0, 10 		# sets $v0 to "10" to select exit syscall
+		syscall
+
+# *************************************************************************************
+# EX04: This is a helper subroutine. It splits an integer into its two individual digits and
+# saves the results in registers v0 and v1.
+# 
+# Arguments: 
+#     a0: an integer value 0 <= x < 100
+# Outputs:
+#     v0: right digit (10^0)
+#     v1: left digit (10^1)
+# *************************************************************************************
+	get_digits:
+		li $a1, 10	# laod immediate: loads a register with a value that is immediately available (without going to memory)
+		divu $a0, $a1 	# divide unsigned: divides $a0 by $a1 and stores the quotient in $LO and the remainder in $HI
+		mfhi $v0	# move from HI: The contents of register HI are moved to the specified register
+		mflo $v1	# move from LO: The contents of register LO are moved to the specified register
+		jr $ra		# jump register: jumps to the address contained in register $ra, where $ra is the return address of the subroutine
+	
+# *************************************************************************************
+# EX04: TASK (d): Write a digit to the segment display. This subroutine expects two 
+# arguments as input, saved in registers a0 and a1. 
+# 
+# a0 (word): The digit, a number between 0 and 9
+#
+# a1 (byte): This is the address of the segment status buffer to which we want to 
+#	write the segment state. 
+# 	This will either be 0xFFFF0010 (right segment) or 0xFFFF0011 (left segment).
+# *************************************************************************************
+	# 1. Fetch the correct byte pattern depending on digit passed in (see the 
+	#    array "digits" defined at the top). 
+	#    Hint: You can load an address with the "la" instruction.
+	# 2. Save the byte to the memory address in a1. 
+	#    Hint: You can store a byte with the "sb" instruction. 
+	#          Compare it to the "sw" instruction seen in class.
+	# 3. Return.
+	write_digit:
+		la $t1, digits		# fetch array digits into t1
+		add $t2, $a0, $t1	# needed to use argument as array index
+		lb $t3, 0($t2)		# load byte of corresponding digit into t3
+		sb $t3, 0($a1)		# store byte into address of in $a1 given digit
+		add  $t1, $zero, $zero	# clear temp variables
+		add  $t2, $zero, $zero	# clear temp variables
+		add  $t3, $zero, $zero	# clear temp variables
+		jr $ra
+
+# *************************************************************************************
+# EX04: Pauses execution of programm by $a0 miliseconds
+# *************************************************************************************
+	pause:
+		li $v0, 32		# syscall 32 = sleep
+		syscall
+		jr $ra
+
+# *************************************************************************************
+# Tasks (c), (d), (e): Take a look at the demo code for a simple interrupt handler 
+# and adapt/extend it. 
+# *************************************************************************************
+
+# INTERRUPT HANDLER (only runs when a key is pressed).
+# 0x80000180 is an address that signifies the location of the instructions in memory. This address is specific to MARS.
+# What follows are the kernel mode instructions.
+.ktext 0x80000180 
+
+	# TODO: Don't forget to save your registers
+	addi $sp, $sp, -8
+	sw  $t0, 0($sp)
+	sw  $t1, 4($sp)
+
+ 	move $k0, $v0   # Save $v0 value
+   	move $k1, $a0   # Save $a0 value
+   	
+   	# Here you'll find the code for each key :
+   	# 0x11,0x21,0x41,0x81,0x12,0x22,0x42,0x82,0x14,0x24,0x44,0x84,0x18,0x28,0x48,0x88. 
+   	# 0   ,1   ,2   ,3   ,4   ,5   ,6   ,7   ,8   ,9   ,a   ,b   ,c   ,d   ,e   ,f
+	#ROW1---------------------------------
+	# READ ROW1
+	li $t0, 0xFFFF0012	# this address holds a byte of control bits that allow us to access the keys in Digital Lab Sim
+	li $t1, 0x81		# we enable interrupts by activating bit 7 on row 1, i.e., in binary: 1000 0001
+	sb $t1, 0($t0)
+	
+	# We need to write the number of the row to the address 0xFFFF0012, then we can read out which key in that row was pressed
+	li $t0, 0x01		# We want to select row 4 of the keyboard
+	lb $t1, 0xFFFF0012
+	sb $t0, 0($t1)
+	
+	# Check if a key was pressed in row 3 (which we selected previously)
+	lb $t0, 0xFFFF0014 
+	
+	# CHECK 1
+	li $t1, 0x21
+	bne $t0, $t1, skip1 	# check if it's key "8", if not, skip set8
+	set1:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 1 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip1:
+	
+	# CHECK 2
+	li $t1, 0x41
+	bne $t0, $t1, skip2 	# check if it's key "8", if not, skip set8
+	set2:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 2 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip2:
+	
+	# CHECK 3
+	li $t1, 0xffffff81
+	bne $t0, $t1, skip3 	# check if it's key "8", if not, skip set8
+	set3:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 3 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip3:
+	#END ROW1------------------------------
+	
+	#ROW2---------------------------------
+	#READ ROW2
+	li $t0, 0xFFFF0012	# this address holds a byte of control bits that allow us to access the keys in Digital Lab Sim
+	li $t1, 0x82		# we enable interrupts by activating bit 7 on row 2, i.e., in binary: 1000 0010
+	sb $t1, 0($t0)
+	
+	# We need to write the number of the row to the address 0xFFFF0012, then we can read out which key in that row was pressed
+	li $t0, 0x01		# We want to select row 4 of the keyboard
+	lb $t1, 0xFFFF0012
+	sb $t0, 0($t1)
+	
+	# Check if a key was pressed in row 3 (which we selected previously)
+	lb $t0, 0xFFFF0014 
+	
+	# CHECK 4
+	li $t1, 0x12
+	bne $t0, $t1, skip4 	# check if it's key "8", if not, skip set8
+	set4:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 4 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip4:
+	
+	# CHECK 5
+	li $t1, 0x22
+	bne $t0, $t1, skip5 	# check if it's key "8", if not, skip set8
+	set5:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 5 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip5:
+	
+	# CHECK 6
+	li $t1, 0x42
+	bne $t0, $t1, skip6 	# check if it's key "8", if not, skip set8
+	set6:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 6 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip6:
+	
+	# CHECK 7
+	li $t1, 0xffffff82
+	bne $t0, $t1, skip7 	# check if it's key "8", if not, skip set8
+	set7:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 7 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip7:
+	#END ROW2------------------------------
+	
+	#ROW3---------------------------------
+	# READ ROW 3
+	li $t0, 0xFFFF0012	# this address holds a byte of control bits that allow us to access the keys in Digital Lab Sim
+	li $t1, 0x84		# we enable interrupts by activating bit 7 on row 3, i.e., in binary: 1000 0100
+	sb $t1, 0($t0)
+	
+	# We need to write the number of the row to the address 0xFFFF0012, then we can read out which key in that row was pressed
+	li $t0, 0x01		# We want to select row 4 of the keyboard
+	lb $t1, 0xFFFF0012
+	sb $t0, 0($t1)
+	
+	# Check if a key was pressed in row 3 (which we selected previously)
+	lb $t0, 0xFFFF0014 
+	
+	# CHECK 8
+	li $t1, 0x14			# key "8"
+	bne $t0, $t1, skip8 	# check if it's key "8", if not, skip set8
+	set8:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 8 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip8:
+	
+	# CHECK 9
+	li $t1, 0x24
+	bne $t0, $t1, skip9 	# check if it's key "8", if not, skip set8
+	set9:
+		# change value from .data
+		lb $a0, value 	#access
+ 		#modify
+ 		la $a0, value 	#get address
+  		li $a1, 9 		#new value
+  		sb $a1 0($a0)		#save new value
+	skip9:
+	#END ROW3------------------------------
+	
+	#ROW4---------------------------------
+	# only handles "d" in this version to start the countdown
+	# READ ROW 4
+	li $t0, 0xFFFF0012	# this address holds a byte of control bits that allow us to access the keys in Digital Lab Sim
+	li $t1, 0x88		# we enable interrupts by activating bit 7 on row 4, i.e., in binary: 1000 1000
+	sb $t1, 0($t0)
+		
+	# Interrupt code for starting the timer
+	# We need to write the number of the row to the address 0xFFFF0012, then we can read out which key in that row was pressed
+	li $t0, 0x01		# We want to select row 4 of the keyboard
+	lb $t1, 0xFFFF0012
+	sb $t0, 0($t1)
+	
+	
+	# checks if start was already pressed = this is the first call of interrupt
+	lb $t6, start_pressed
+	bnez $t6, reset_timer		# if already started, call reset_timer subroutine
+	
+	
+	# Check if a key was pressed in row 4 (which we selected previously)
+	lb $t0, 0xFFFF0014 
+	li $t1, 0x28			# key "d" (row 4, col 1): 0x18
+	beq $t0, $t1, set_start_pressed  	# check if it's key "d", and start the main loop
+	#END ROW4------------------------------
+	set_start_pressed_return:		# return coordinates for set_start_pressed
+
+
+	
+
+	
+	lw $t7, value
+	
+	reset_timer_return:		# return coordinates for reset_timer
+	
+	j exit_interrupt
+	
+   	exit_interrupt:
+   	move $v0, $k0   	# Restore $v0
+	move $a0, $k1   	# Restore $a0
+	
+	# TODO: Don't forget to restore registers before return
+	lw  $t0, 0($sp)  	
+	lw  $t1, 4($sp)
+	addi $sp, $sp, 8
+	
+	eret			# exit the interrupt handler and return to main program
+	
+	set_start_pressed:
+		# change start_pressed from .data
+		lb $a0, start_pressed 	#access
+ 		#modify
+ 		la $a0, start_pressed 	#get address
+  		li $a1, 1 		#new value
+  		sb $a1 0($a0)		#save new value
+  		j set_start_pressed_return
+	
+	reset_timer:
+		lw $t7, value  		# register t0 holds the countdown value
+		add $t7, $t7, 1		# add 1 to counter, beacuse return address is just before decrement
+		j reset_timer_return
+
+	test:
+		lb   $a0, 0xFFFF0014
+   		li   $v0, 34    	# print an integer as hexadecimal code
+   		syscall
+		#j test_return
